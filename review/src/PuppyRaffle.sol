@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
-import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol"; // @audit NFTs
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol"; // @audit access control
-import {Address} from "@openzeppelin/contracts/utils/Address.sol"; // @audit convenience fns for address
-import {Base64} from "lib/base64/base64.sol"; // @audit for encoding in base64
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol"; // audit NFTs
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol"; // audit access control
+import {Address} from "@openzeppelin/contracts/utils/Address.sol"; // audit convenience fns for address
+import {Base64} from "lib/base64/base64.sol"; // audit for encoding in base64
 
 /// @title PuppyRaffle
 /// @author PuppyLoveDAO
 /// @notice This project is to enter a raffle to win a cute dog NFT. The protocol should do the following:
 /// 1. Call the `enterRaffle` function with the following parameters:
 ///    1. `address[] participants`: A list of addresses that enter. You can use this to enter yourself multiple times, or yourself and a group of your friends.
-/// 2. Duplicate addresses are not allowed  // @audit duplicate addresses but can enter multiple times using `enterRaffle`?
+/// 2. Duplicate addresses are not allowed  // audit duplicate addresses but can enter multiple times using `enterRaffle`?
 /// 3. Users are allowed to get a refund of their ticket & `value` if they call the `refund` function
 /// 4. Every X seconds, the raffle will be able to draw a winner and be minted a random puppy
 /// 5. The owner of the protocol will set a feeAddress to take a cut of the `value`, and the rest of the funds will be sent to the winner of the puppy.
 contract PuppyRaffle is ERC721, Ownable {
-    using Address for address payable; // @audit so (address payable) can use fns in `Address`
+    using Address for address payable; // audit so (address payable) can use fns in `Address`
 
     uint256 public immutable entranceFee;
 
@@ -25,9 +25,9 @@ contract PuppyRaffle is ERC721, Ownable {
     uint256 public raffleStartTime;
     address public previousWinner;
 
-    // We do some storage packing to save gas // @audit LEARN: what is storage packing
+    // We do some storage packing to save gas // audit LEARN: what is storage packing
     address public feeAddress;
-    uint64 public totalFees = 0; // @audit is this a counter for fees? doesn't the contract keep track of this?
+    uint64 public totalFees = 0; // audit is this a counter for fees? doesn't the contract keep track of this?
 
     // mappings to keep track of token traits
     mapping(uint256 => uint256) public tokenIdToRarity;
@@ -37,7 +37,7 @@ contract PuppyRaffle is ERC721, Ownable {
     // Stats for the common puppy (pug)
     string private commonImageUri =
         "ipfs://QmSsYRx3LpDAb1GZQm7zZ1AuHZjfbPkD6J7s9r41xu1mf8";
-    uint256 public constant COMMON_RARITY = 70; // @audit %likelihood of getting a common puppy
+    uint256 public constant COMMON_RARITY = 70; // audit %likelihood of getting a common puppy
     string private constant COMMON = "common";
 
     // Stats for the rare puppy (st. bernard)
@@ -97,7 +97,7 @@ contract PuppyRaffle is ERC721, Ownable {
             for (uint256 j = i + 1; j < players.length; j++) {
                 require(
                     players[i] != players[j],
-                    "PuppyRaffle: Duplicate player" // @audit LEARN: does a "revert" reset reset changes to storage?
+                    "PuppyRaffle: Duplicate player" // audit LEARN: does a "revert" reset reset changes to storage?
                 );
             }
         }
@@ -119,7 +119,7 @@ contract PuppyRaffle is ERC721, Ownable {
 
         payable(msg.sender).sendValue(entranceFee);
 
-        players[playerIndex] = address(0);  // @audit FOUND: reentrancy!!
+        players[playerIndex] = address(0);  // audit FOUND: reentrancy!!
         emit RaffleRefunded(playerAddress);
     }
 
@@ -143,7 +143,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @dev we use a hash of on-chain data to generate the random numbers
     /// @dev we reset the active players array after the winner is selected
     /// @dev we send 80% of the funds to the winner, the other 20% goes to the feeAddress
-    function selectWinner() external { // @audit INFO: anyone can end raffle
+    function selectWinner() external { // audit INFO: anyone can end raffle
         require(
             block.timestamp >= raffleStartTime + raffleDuration,
             "PuppyRaffle: Raffle not over"
@@ -152,15 +152,15 @@ contract PuppyRaffle is ERC721, Ownable {
         uint256 winnerIndex = uint256(
             keccak256(
                 abi.encodePacked(msg.sender, block.timestamp, block.difficulty) 
-                // @audit this is deterministic, can't this be solved? how?
-                // @audit what is block.difficulty? ans: used for randomization
+                // audit this is deterministic, can't this be solved? how?
+                // audit what is block.difficulty? ans: used for randomization
             )
         ) % players.length;
 
         address winner = players[winnerIndex];
         uint256 totalAmountCollected = players.length * entranceFee;
 
-        // @audit is floating point arithmetic division correct?
+        // audit is floating point arithmetic division correct?
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
         
@@ -183,13 +183,13 @@ contract PuppyRaffle is ERC721, Ownable {
         delete players;
         raffleStartTime = block.timestamp;
         previousWinner = winner;
-        (bool success, ) = winner.call{value: prizePool}(""); // @audit INFO: eth sent
+        (bool success, ) = winner.call{value: prizePool}(""); // audit INFO: eth sent
         require(success, "PuppyRaffle: Failed to send prize pool to winner");
-        _safeMint(winner, tokenId); // @audit tokenId = number of tokens??? any harm here?
+        _safeMint(winner, tokenId); // audit tokenId = number of tokens??? any harm here?
     }
 
     /// @notice this function will withdraw the fees to the feeAddress
-    function withdrawFees() external { // @audit INFO: not onlyOwner, so anyone can start a new raffle?
+    function withdrawFees() external { // audit INFO: not onlyOwner, so anyone can start a new raffle?
         require(
             address(this).balance == uint256(totalFees),
             "PuppyRaffle: There are currently players active!"
