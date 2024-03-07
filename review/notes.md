@@ -17,7 +17,7 @@ The contract can be broken so that:
 1. use duplicate addressess // @audit not sure what this means
 2. deplete the contract of funds via `refund`
 3. non-owner of protocol can set feeAddress
-4. 
+4.
 
 # Notes
 
