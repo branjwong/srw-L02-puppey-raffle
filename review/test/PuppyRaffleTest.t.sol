@@ -16,11 +16,7 @@ contract PuppyRaffleTest is Test {
     uint256 duration = 1 days;
 
     function setUp() public {
-        puppyRaffle = new PuppyRaffle(
-            entranceFee,
-            feeAddress,
-            duration
-        );
+        puppyRaffle = new PuppyRaffle(entranceFee, feeAddress, duration);
     }
 
     //////////////////////
@@ -170,7 +166,7 @@ contract PuppyRaffleTest is Test {
         vm.warp(block.timestamp + duration + 1);
         vm.roll(block.number + 1);
 
-        uint256 expectedPayout = ((entranceFee * 4) * 80 / 100);
+        uint256 expectedPayout = (((entranceFee * 4) * 80) / 100);
 
         puppyRaffle.selectWinner();
         assertEq(address(playerFour).balance, balanceBefore + expectedPayout);
@@ -188,8 +184,8 @@ contract PuppyRaffleTest is Test {
         vm.warp(block.timestamp + duration + 1);
         vm.roll(block.number + 1);
 
-        string memory expectedTokenUri =
-            "data:application/json;base64,eyJuYW1lIjoiUHVwcHkgUmFmZmxlIiwgImRlc2NyaXB0aW9uIjoiQW4gYWRvcmFibGUgcHVwcHkhIiwgImF0dHJpYnV0ZXMiOiBbeyJ0cmFpdF90eXBlIjogInJhcml0eSIsICJ2YWx1ZSI6IGNvbW1vbn1dLCAiaW1hZ2UiOiJpcGZzOi8vUW1Tc1lSeDNMcERBYjFHWlFtN3paMUF1SFpqZmJQa0Q2SjdzOXI0MXh1MW1mOCJ9";
+        string
+            memory expectedTokenUri = "data:application/json;base64,eyJuYW1lIjoiUHVwcHkgUmFmZmxlIiwgImRlc2NyaXB0aW9uIjoiQW4gYWRvcmFibGUgcHVwcHkhIiwgImF0dHJpYnV0ZXMiOiBbeyJ0cmFpdF90eXBlIjogInJhcml0eSIsICJ2YWx1ZSI6IGNvbW1vbn1dLCAiaW1hZ2UiOiJpcGZzOi8vUW1Tc1lSeDNMcERBYjFHWlFtN3paMUF1SFpqZmJQa0Q2SjdzOXI0MXh1MW1mOCJ9";
 
         puppyRaffle.selectWinner();
         assertEq(puppyRaffle.tokenURI(0), expectedTokenUri);
@@ -213,12 +209,17 @@ contract PuppyRaffleTest is Test {
         puppyRaffle.withdrawFees();
         assertEq(address(feeAddress).balance, expectedPrizeAmount);
     }
-    // 
+
+    //
     // Attacks
-    // 
-    function test_srw_reentrancy_attack_can_pull_all_funds_via_refund() public playersEntered {
+    //
+    function test_srw_reentrancy_attack_can_pull_all_funds_via_refund()
+        public
+        playersEntered
+    {
         ReentrancyAttack attack = new ReentrancyAttack(
-            puppyRaffle, entranceFee
+            puppyRaffle,
+            entranceFee
         );
 
         vm.deal(address(attack), entranceFee);
@@ -231,14 +232,6 @@ contract PuppyRaffleTest is Test {
         assertEq(address(puppyRaffle).balance, 0);
         assertEq(address(attack).balance, entranceFee * 5);
     }
-
-    // function test_srw_entering_with_duplicate_players_leave_duplicate_player() public {
-    //     address[] memory players = new address[](2);
-    //     players[0] = playerOne;
-    //     players[1] = playerOne;
-    //     vm.expectRevert("PuppyRaffle: Duplicate player");
-    //     puppyRaffle.enterRaffle{value: entranceFee * 2}(players);
-    // }
 }
 
 contract ReentrancyAttack {

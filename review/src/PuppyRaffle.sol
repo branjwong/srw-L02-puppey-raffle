@@ -97,7 +97,7 @@ contract PuppyRaffle is ERC721, Ownable {
             for (uint256 j = i + 1; j < players.length; j++) {
                 require(
                     players[i] != players[j],
-                    "PuppyRaffle: Duplicate player" // audit LEARN: does a "revert" reset reset changes to storage?
+                    "PuppyRaffle: Duplicate player" // audit-ok LEARN: does a "revert" reset reset changes to storage? answer: no
                 );
             }
         }
@@ -119,7 +119,7 @@ contract PuppyRaffle is ERC721, Ownable {
 
         payable(msg.sender).sendValue(entranceFee);
 
-        players[playerIndex] = address(0);  // audit FOUND: reentrancy!!
+        players[playerIndex] = address(0); // audit FOUND: reentrancy!!
         emit RaffleRefunded(playerAddress);
     }
 
@@ -143,7 +143,8 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @dev we use a hash of on-chain data to generate the random numbers
     /// @dev we reset the active players array after the winner is selected
     /// @dev we send 80% of the funds to the winner, the other 20% goes to the feeAddress
-    function selectWinner() external { // audit INFO: anyone can end raffle
+    function selectWinner() external {
+        // audit-info: anyone can end raffle
         require(
             block.timestamp >= raffleStartTime + raffleDuration,
             "PuppyRaffle: Raffle not over"
@@ -151,7 +152,7 @@ contract PuppyRaffle is ERC721, Ownable {
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
         uint256 winnerIndex = uint256(
             keccak256(
-                abi.encodePacked(msg.sender, block.timestamp, block.difficulty) 
+                abi.encodePacked(msg.sender, block.timestamp, block.difficulty)
                 // audit this is deterministic, can't this be solved? how?
                 // audit what is block.difficulty? ans: used for randomization
             )
@@ -163,7 +164,7 @@ contract PuppyRaffle is ERC721, Ownable {
         // audit is floating point arithmetic division correct?
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
-        
+
         totalFees = totalFees + uint64(fee);
 
         uint256 tokenId = totalSupply();
@@ -183,13 +184,14 @@ contract PuppyRaffle is ERC721, Ownable {
         delete players;
         raffleStartTime = block.timestamp;
         previousWinner = winner;
-        (bool success, ) = winner.call{value: prizePool}(""); // audit INFO: eth sent
+        (bool success, ) = winner.call{value: prizePool}(""); // audit-info: eth sent
         require(success, "PuppyRaffle: Failed to send prize pool to winner");
         _safeMint(winner, tokenId); // audit tokenId = number of tokens??? any harm here?
     }
 
     /// @notice this function will withdraw the fees to the feeAddress
-    function withdrawFees() external { // audit INFO: not onlyOwner, so anyone can start a new raffle?
+    function withdrawFees() external {
+        // audit-info: not onlyOwner, so anyone can start a new raffle?
         require(
             address(this).balance == uint256(totalFees),
             "PuppyRaffle: There are currently players active!"
