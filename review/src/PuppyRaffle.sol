@@ -153,8 +153,7 @@ contract PuppyRaffle is ERC721, Ownable {
         uint256 winnerIndex = uint256(
             keccak256(
                 abi.encodePacked(msg.sender, block.timestamp, block.difficulty)
-                // audit this is deterministic, can't this be solved? how?
-                // audit what is block.difficulty? ans: used for randomization
+                // audit weak random using block.timestamp: can be influenced by miners
             )
         ) % players.length;
 
@@ -193,7 +192,7 @@ contract PuppyRaffle is ERC721, Ownable {
     function withdrawFees() external {
         // audit-info: not onlyOwner, so anyone can start a new raffle?
         require(
-            address(this).balance == uint256(totalFees),
+            address(this).balance == uint256(totalFees), // audit string equality can be exploited
             "PuppyRaffle: There are currently players active!"
         );
         uint256 feesToWithdraw = totalFees;

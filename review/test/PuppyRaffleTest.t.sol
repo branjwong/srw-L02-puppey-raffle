@@ -257,7 +257,7 @@ contract ReentrancyAttack {
         s_puppyRaffle.refund(s_indexOfPlayer);
     }
 
-    fallback() external payable {
+    receive() external payable {
         if (s_reentrancy_count > 0) {
             s_reentrancy_count -= 1;
             s_puppyRaffle.refund(s_indexOfPlayer);
