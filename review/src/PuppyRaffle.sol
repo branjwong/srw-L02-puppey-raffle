@@ -192,7 +192,7 @@ contract PuppyRaffle is ERC721, Ownable {
     function withdrawFees() external {
         // audit-info: not onlyOwner, so anyone can start a new raffle?
         require(
-            players.length != 0,
+            address(this).balance == uint256(totalFees), // audit string equality can be exploited
             "PuppyRaffle: There are currently players active!"
         );
         uint256 feesToWithdraw = totalFees;
