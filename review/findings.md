@@ -247,35 +247,6 @@ function withdrawFees() external {
 }
 ```
 
-### L-1 Withdrawal of funds denied by denying funds on selectWinner
-
-If during `PuppyRaffle::selectWinner` the winner is a contract with no payable `receive` or `fallback` function, the result is reverted and a new winner must be determined.
-
-```jsx
-function selectWinner() external {
-    ...
-    uint256 winnerIndex = uint256(
-        keccak256(
-            abi.encodePacked(msg.sender, block.timestamp, block.difficulty)
-        )
-    ) % players.length;
-
-    address winner = players[winnerIndex];
-    
-    ...
-
-    require(success, "PuppyRaffle: Failed to send prize pool to winner");
-    _safeMint(winner, tokenId);
-}
-```
-
-**Impact**
-
-The loss is only realized by the participant. Thus, the impact is low.
-
-**Mitigation**
-
-Employ a **pull** strategy instead of a push strategy.
 
 ### H-4 DOS - enterRaffle becomes more expensive the more players enter
 
@@ -363,21 +334,7 @@ There are several approaches:
 1. **Remove the check for duplicate addresses.** A user can freely create new wallets if they want to re-enter anyway, so duplicate addresses don't achieve anything.
 2. **Use a mapping to check for duplicate addresses.** This allows for contant-time lookups to check for duplicates.
 
-### L-2 GetActivePlayerIndex returns address(0) for both first player and non-player
-
-**Description**
-
-`PuppyRaffle::GetActivePlayerIndex` returns address(0) for both first player and non-player. This can be confusing.
-
-**Impact**
-
-This impact is only informational. No financial value is compromised through this issue.
-
-**Mitigation**
-
-Use something like `revert("Player not found")` instead.
-
-### H-6 Casting `fee` in `selectWinner` from uint256 allows for overflow
+### H-5 Casting `fee` in `selectWinner` from uint256 allows for overflow
 
 **Description**
 
@@ -460,6 +417,49 @@ function enterRaffle(uint256 i) internal returns (uint256) {
 **Mitigation**
 
 Store the `PuppyRaffle::totalFees` in a uint256. For a raffle with an entrance fee of 1 ether, this will bring the allowable entrants from 92 to 5e59.
+
+### L-1 Withdrawal of funds denied by denying funds on selectWinner
+If during `PuppyRaffle::selectWinner` the winner is a contract with no payable `receive` or `fallback` function, the result is reverted and a new winner must be determined.
+
+```jsx
+function selectWinner() external {
+    ...
+    uint256 winnerIndex = uint256(
+        keccak256(
+            abi.encodePacked(msg.sender, block.timestamp, block.difficulty)
+        )
+    ) % players.length;
+
+    address winner = players[winnerIndex];
+    
+    ...
+
+    require(success, "PuppyRaffle: Failed to send prize pool to winner");
+    _safeMint(winner, tokenId);
+}
+```
+
+**Impact**
+
+The loss is only realized by the participant. Thus, the impact is low.
+
+**Mitigation**
+
+Employ a **pull** strategy instead of a push strategy.
+
+### L-2 GetActivePlayerIndex returns address(0) for both first player and non-player
+
+**Description**
+
+`PuppyRaffle::GetActivePlayerIndex` returns address(0) for both first player and non-player. This can be confusing.
+
+**Impact**
+
+This impact is only informational. No financial value is compromised through this issue.
+
+**Mitigation**
+
+Use something like `revert("Player not found")` instead.
 
 ### L-3 Raffle entrants can deny withdrawal of fees
 
