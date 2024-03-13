@@ -26,3 +26,7 @@ The contract can be broken so that:
 
 - custom reverts
 - i_, s_, for immutable and storage variables
+
+# Gas
+
+- checking for duplicates, can be O(n) loop instead of O(n^2)

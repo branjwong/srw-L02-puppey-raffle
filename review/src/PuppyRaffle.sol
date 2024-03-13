@@ -183,7 +183,7 @@ contract PuppyRaffle is ERC721, Ownable {
         delete players;
         raffleStartTime = block.timestamp;
         previousWinner = winner;
-        (bool success, ) = winner.call{value: prizePool}(""); // audit-info: eth sent
+        (bool success, ) = winner.call{value: prizePool}(""); // audit-warn: what happens if reverts? winner that was picked doesn't receive prize. big deal? their fault for not receiving?? if not, maybe they feel cheated
         require(success, "PuppyRaffle: Failed to send prize pool to winner");
         _safeMint(winner, tokenId); // audit tokenId = number of tokens??? any harm here?
     }
