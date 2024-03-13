@@ -2,6 +2,26 @@
 
 When `PuppyRaffle::refund` is called, eth is sent to player before the state accounting for the refund is updated. This allows for re-entrancy.
 
+
+```jsx
+function refund(uint256 playerIndex) public {
+    address playerAddress = players[playerIndex];
+    require(
+        playerAddress == msg.sender,
+        "PuppyRaffle: Only the player can refund"
+    );
+    require(
+        playerAddress != address(0),
+        "PuppyRaffle: Player already refunded, or is not active"
+    );
+
+    payable(msg.sender).sendValue(entranceFee);
+
+    players[playerIndex] = address(0);
+    emit RaffleRefunded(playerAddress);
+}
+```
+
 **Impact**
 
 Since this vulnerability can lead to the entire contract being drained of funds, this issue is of high severity.
@@ -227,9 +247,27 @@ function withdrawFees() external {
 }
 ```
 
-### L-4 Withdrawal of funds denied by denying funds on selectWinner
+### L-1 Withdrawal of funds denied by denying funds on selectWinner
 
 If during `PuppyRaffle::selectWinner` the winner is a contract with no payable `receive` or `fallback` function, the result is reverted and a new winner must be determined.
+
+```jsx
+function selectWinner() external {
+    ...
+    uint256 winnerIndex = uint256(
+        keccak256(
+            abi.encodePacked(msg.sender, block.timestamp, block.difficulty)
+        )
+    ) % players.length;
+
+    address winner = players[winnerIndex];
+    
+    ...
+
+    require(success, "PuppyRaffle: Failed to send prize pool to winner");
+    _safeMint(winner, tokenId);
+}
+```
 
 **Impact**
 
@@ -239,11 +277,31 @@ The loss is only realized by the participant. Thus, the impact is low.
 
 Employ a **pull** strategy instead of a push strategy.
 
-### H-5 DOS - enterRaffle becomes more expensive the more players enter
+### H-4 DOS - enterRaffle becomes more expensive the more players enter
 
 **Description**
 
-There is loop in enterRaffle that checks for duplicate players. It is unbounded and expands as more players enter. This means that for every new player that joins, the next player has to pay more gas to join. 
+There is loop in enterRaffle that checks for duplicate players. It is unbounded and expands as more players enter. This means that for every new player that joins, the next player has to pay more gas to join.
+
+```jsx
+function enterRaffle(address[] memory newPlayers) public payable {
+    ...
+    for (uint256 i = 0; i < newPlayers.length; i++) {
+        players.push(newPlayers[i]);
+    }
+
+    // Check for duplicates
+    for (uint256 i = 0; i < players.length - 1; i++) {
+        for (uint256 j = i + 1; j < players.length; j++) {
+            require(
+                players[i] != players[j],
+                "PuppyRaffle: Duplicate player" // audit-ok LEARN: does a "revert" reset reset changes to storage? answer: no
+            );
+        }
+    }
+    ...
+}
+```
 
 **Impact**
 
@@ -305,6 +363,127 @@ There are several approaches:
 1. **Remove the check for duplicate addresses.** A user can freely create new wallets if they want to re-enter anyway, so duplicate addresses don't achieve anything.
 2. **Use a mapping to check for duplicate addresses.** This allows for contant-time lookups to check for duplicates.
 
-### L-6 GetActivePlayerIndex returns address(0) for both first player and non-player
+### L-2 GetActivePlayerIndex returns address(0) for both first player and non-player
 
-### S-7 Casting `fee` in `selectWinner` from uint256 allows for overflow
+**Description**
+
+`PuppyRaffle::GetActivePlayerIndex` returns address(0) for both first player and non-player. This can be confusing.
+
+**Impact**
+
+This impact is only informational. No financial value is compromised through this issue.
+
+**Mitigation**
+
+Use something like `revert("Player not found")` instead.
+
+### H-6 Casting `fee` in `selectWinner` from uint256 allows for overflow
+
+**Description**
+
+When winners are selected in `PuppyRaffle::selectWinner`, the `fee` calculated for a single raffle run is added to the `totalFees` counter, but not before casting the fee for that run from a uint256 to a uint64.
+
+```jsx
+contract PuppyRaffle is ERC721, Ownable {
+    uint64 public totalFees = 0;
+    ...
+
+    function selectWinner() external {
+        ...
+
+        uint256 prizePool = (totalAmountCollected * 80) / 100;
+        uint256 fee = (totalAmountCollected * 20) / 100;
+
+        totalFees = totalFees + uint64(fee);
+
+        ...
+    }
+
+    ...
+}
+```
+
+It follows that the total fees that can be collected for a raffle run is bounded by uint64, not uint256. This is 2^64 wei which is a little under 18.5 ether. Since 1/5th of the `PuppyRaffle::entranceFee` accumulates into `PuppyRaffle::totalFee`, it follows that a single rafle run can only collect around 92 ether before overflowing.
+
+If `PuppyRaffle::totalFee` overflows, it will fall out of line with `address(this).balance`, and any call to `PuppyRaffle::withdrawFees` will revert. The `PuppyRaffle::feeAddress` will be indefinitely denied collecting fees.
+
+```jsx
+function withdrawFees() external {
+    require(
+        address(this).balance == uint256(totalFees),
+        "PuppyRaffle: There are currently players active!"
+    );
+    uint256 feesToWithdraw = totalFees;
+    totalFees = 0;
+    (bool success, ) = feeAddress.call{value: feesToWithdraw}("");
+    require(success, "PuppyRaffle: Failed to withdraw fees");
+}
+```
+
+**Impact**
+
+Since this vulnerability permanently prevents the feeAddress from withdrawing fees, this vulnerability is of high severity.
+
+**Proof of Concept**
+
+A contract with an entrance fee of 1 ether will have the totalFee overflow if there are more than 92 entrants.
+
+```jsx
+function test_srw_DOS_OVERFLOW_casting_fee_from_uint256_causes_overflow()
+    public
+{
+    // assumption: entranceFee = 1e18
+    uint256 playerCount = 93;
+    for (uint256 i = 0; i < playerCount; ++i) {
+        enterRaffle(i);
+    }
+
+    vm.warp(block.timestamp + duration + 1);
+    vm.roll(block.number + 1);
+
+    puppyRaffle.selectWinner();
+
+    vm.expectRevert();
+    puppyRaffle.withdrawFees();
+}
+
+function enterRaffle(uint256 i) internal returns (uint256) {
+    address[] memory players = new address[](1);
+    players[0] = address(i);
+
+    vm.deal(address(i), entranceFee);
+    vm.prank(address(i));
+    puppyRaffle.enterRaffle{value: entranceFee}(players);
+}
+```
+
+**Mitigation**
+
+Store the `PuppyRaffle::totalFees` in a uint256. For a raffle with an entrance fee of 1 ether, this will bring the allowable entrants from 92 to 5e59.
+
+### L-3 Raffle entrants can deny withdrawal of fees
+
+**Description**
+
+Since the balance of the contract must be equal to the `totalFees` counted to withdraw fees, an attacker can always join a new raffle whenever the old one ends to prevent fee withdrawal.
+
+```jsx
+function withdrawFees() external {
+    require(
+        address(this).balance == uint256(totalFees),
+        "PuppyRaffle: There are currently players active!"
+    );
+    uint256 feesToWithdraw = totalFees;
+    totalFees = 0;
+    (bool success, ) = feeAddress.call{value: feesToWithdraw}("");
+    require(success, "PuppyRaffle: Failed to withdraw fees");
+}
+```
+
+**Impact**
+
+The impact is low, since an attacker must always be ready to put in an entrance fee, a cost of which may be prohibitive enough for most attackers.
+
+**Mitigation**
+
+Remove the requirement for `balance == totalFees`.

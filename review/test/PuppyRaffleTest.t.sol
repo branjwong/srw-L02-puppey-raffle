@@ -12,7 +12,7 @@ contract PuppyRaffleTest is Test {
     address playerTwo = address(2);
     address playerThree = address(3);
     address playerFour = address(4);
-    address feeAddress = address(99);
+    address feeAddress = address(999);
     uint256 duration = 1 days;
 
     function setUp() public {
@@ -284,23 +284,24 @@ contract PuppyRaffleTest is Test {
         public
     {
         uint256 i = 0;
+        uint256 gasSpent = 0;
 
         while (i < 4) {
-            uint256 gasSpent = enterAndLogGas(i);
+            gasSpent = enterRaffle(i);
             console.log("[ Player ", i, "] Gas spent: ", gasSpent);
             i += 1;
         }
 
         while (i < 100) {
-            enterAndLogGas(i);
+            enterRaffle(i);
             i += 1;
         }
 
-        uint256 gasSpent = enterAndLogGas(i);
+        gasSpent = enterRaffle(i);
         console.log("[ Player ", i, "] Gas spent: ", gasSpent);
     }
 
-    function enterAndLogGas(uint256 i) internal returns (uint256) {
+    function enterRaffle(uint256 i) internal returns (uint256) {
         address[] memory players = new address[](1);
         players[0] = address(i);
         uint256 gasStart = gasleft();
@@ -314,7 +315,23 @@ contract PuppyRaffleTest is Test {
         return gasSpent;
     }
 
-    function test_srw_OVERFLOW_casting_fee_from_uint256_causes_overflow() {}
+    function test_srw_DOS_OVERFLOW_casting_fee_from_uint256_causes_overflow()
+        public
+    {
+        // assumption: entranceFee = 1e18
+        uint256 playerCount = 93;
+        for (uint256 i = 0; i < playerCount; ++i) {
+            enterRaffle(i);
+        }
+
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+
+        puppyRaffle.selectWinner();
+
+        vm.expectRevert();
+        puppyRaffle.withdrawFees();
+    }
 }
 
 contract ReentrancyAttack {
