@@ -313,6 +313,8 @@ contract PuppyRaffleTest is Test {
 
         return gasSpent;
     }
+
+    function test_srw_OVERFLOW_casting_fee_from_uint256_causes_overflow() {}
 }
 
 contract ReentrancyAttack {
