@@ -14,12 +14,14 @@
                 "GitHub.copilot-chat",
                 "GitHub.copilot",
                 "mhutchie.git-graph",
-                "NomicFoundation.hardhat-solidity",
                 "tamasfe.even-better-toml",
                 "gimenete.github-linker",
-                "tintinweb.solidity-visual-auditor",
-                "tintinweb.solidity-metrics"
-            ]
+                "tintinweb.solidity-metrics",
+                "JuanBlanco.solidity"
+            ],
+            "settings": {
+                "solidity.telemetry": true
+            }
         }
     }
 }
