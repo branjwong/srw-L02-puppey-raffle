@@ -97,10 +97,12 @@ contract PuppyRaffle is ERC721, Ownable {
             for (uint256 j = i + 1; j < players.length; j++) {
                 require(
                     players[i] != players[j],
-                    "PuppyRaffle: Duplicate player" // audit-ok LEARN: does a "revert" reset reset changes to storage? answer: no
+                    "PuppyRaffle: Duplicate player" // audit ok LEARN: does a "revert" reset reset changes to storage? answer: no
                 );
             }
         }
+
+        // audit info: no need to emit if no new players
         emit RaffleEnter(newPlayers);
     }
 
@@ -144,7 +146,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @dev we reset the active players array after the winner is selected
     /// @dev we send 80% of the funds to the winner, the other 20% goes to the feeAddress
     function selectWinner() external {
-        // audit-info: anyone can end raffle
+        // audit info: anyone can end raffle
         require(
             block.timestamp >= raffleStartTime + raffleDuration,
             "PuppyRaffle: Raffle not over"
@@ -160,7 +162,7 @@ contract PuppyRaffle is ERC721, Ownable {
         address winner = players[winnerIndex];
         uint256 totalAmountCollected = players.length * entranceFee;
 
-        // audit is floating point arithmetic division correct?
+        // audit QUESTION is floating point arithmetic division correct?
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
 
@@ -184,16 +186,22 @@ contract PuppyRaffle is ERC721, Ownable {
         delete players;
         raffleStartTime = block.timestamp;
         previousWinner = winner;
-        (bool success, ) = winner.call{value: prizePool}(""); // audit-warn: what happens if reverts? winner that was picked doesn't receive prize. big deal? their fault for not receiving?? if not, maybe they feel cheated
+        // audit QUESTION what happens if reverts?
+        // audit ANSWER winner that was picked doesn't receive prize.
+        // audit QUESTION big deal?
+        // audit ANSWER their fault for not receiving?? if not, maybe they feel cheated
+        (bool success, ) = winner.call{value: prizePool}("");
         require(success, "PuppyRaffle: Failed to send prize pool to winner");
-        _safeMint(winner, tokenId); // audit tokenId = number of tokens??? any harm here?
+        // audit tokenId = number of tokens??? any harm here?
+        _safeMint(winner, tokenId);
     }
 
     /// @notice this function will withdraw the fees to the feeAddress
     function withdrawFees() external {
-        // audit-info: not onlyOwner, so anyone can start a new raffle?
+        // audit info: not onlyOwner, so anyone can start a new raffle?
         require(
-            address(this).balance == uint256(totalFees), // audit string equality can be exploited
+            // audit string equality can be exploited
+            address(this).balance == uint256(totalFees),
             "PuppyRaffle: There are currently players active!"
         );
         uint256 feesToWithdraw = totalFees;
@@ -210,6 +218,7 @@ contract PuppyRaffle is ERC721, Ownable {
     }
 
     /// @notice this function will return true if the msg.sender is an active player
+    // audit not used
     function _isActivePlayer() internal view returns (bool) {
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == msg.sender) {

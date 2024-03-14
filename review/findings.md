@@ -487,3 +487,17 @@ The impact is low, since an attacker must always be ready to put in an entrance 
 **Mitigation**
 
 Remove the requirement for `balance == totalFees`.
+
+### L-4 No need to emit `PuppyRaffle::RaffleEnter` if no players being added
+
+### NC-1 `PuppyRaffle::_isActivePlayer` is unused
+
+### NC-2 Floating pragma
+
+### NC-3 Magic numbers
+
+80, 20, 
+
+### G-1 `PuppyRaffle:raffleDuration` should be immutable
+
+uris
