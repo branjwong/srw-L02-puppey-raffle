@@ -211,6 +211,33 @@ contract PuppyRaffleTest is Test {
     }
 
     //
+    // Checks
+    //
+    function test_srw_can_enter_multiple_times() public {
+        // assumption: entranceFee = 1e18
+        uint256 playerCount = 4;
+        for (uint256 i = 0; i < playerCount; ++i) {
+            enterRaffle(i);
+        }
+
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+
+        puppyRaffle.selectWinner();
+        puppyRaffle.withdrawFees();
+
+        for (uint256 i = 0; i < playerCount; ++i) {
+            enterRaffle(i);
+        }
+
+        vm.warp(block.timestamp + duration + 2);
+        vm.roll(block.number + 2);
+
+        puppyRaffle.selectWinner();
+        puppyRaffle.withdrawFees();
+    }
+
+    //
     // Attacks
     //
     function test_srw_REENTRANCY_can_drain_funds_via_refund()

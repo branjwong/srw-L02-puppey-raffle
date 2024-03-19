@@ -105,7 +105,7 @@ contract ReentrancyAttack {
 
 **Mitigation**
 
-Zero-out the address for the player's index before the funds are sent.
+Zero-out the address for the player's index **before** the funds are sent. This is in accordance to the Checks-Effects-Interactions pattern.
 
 ```diff
 function refund(uint256 playerIndex) public {
@@ -127,13 +127,15 @@ function refund(uint256 playerIndex) public {
 }
 ```
 
+Reference: https://docs.soliditylang.org/en/v0.5.11/security-considerations.html#re-entrancy
+
 ### H-2 Weak RNG allows for miners to determine winner
 
 Since RNG algorithm for `PuppyRaffle::selectWinner` relies on `block.timestamp`, a miner can quickly test the output of some transaction block orderings to attain a favourable result.
 
 **Impact**
 
-This vulnerability can guarantee an attacker to win. Since this would steal 80% of the funds from the contract, this is considered a high severity threat. 
+This vulnerability can guarantee an attacker to win. Since this would steal 80% of the funds from the contract, this is considered a high severity threat.
 
 **Proof of Concept**
 
@@ -276,7 +278,7 @@ function enterRaffle(address[] memory newPlayers) public payable {
 
 **Impact**
 
-It costs the 100th player around 90x more gas to enter than the first player. This gross unfairness implies a high severity. 
+It costs the 100th player around 90x more gas to enter than the first player. This gross unfairness implies a high severity.
 
 **Proof of Concept**
 
@@ -334,7 +336,7 @@ There are several approaches:
 1. **Remove the check for duplicate addresses.** A user can freely create new wallets if they want to re-enter anyway, so duplicate addresses don't achieve anything.
 2. **Use a mapping to check for duplicate addresses.** This allows for contant-time lookups to check for duplicates.
 
-### H-5 Casting `fee` in `selectWinner` from uint256 allows for overflow
+### H-5 Casting `fee` in `selectWinner` DOS's withdraw fees
 
 **Description**
 
@@ -416,9 +418,15 @@ function enterRaffle(uint256 i) internal returns (uint256) {
 
 **Mitigation**
 
-Store the `PuppyRaffle::totalFees` in a uint256. For a raffle with an entrance fee of 1 ether, this will bring the allowable entrants from 92 to 5e59.
+Options:
+
+1. **Store the `PuppyRaffle::totalFees` in a uint256.** For a raffle with an entrance fee of 1 ether, this will bring the allowable entrants from 92 to 5e59.
+2. **Use a newer version of solidity.** All arithmetic operations revert on over- and underflow by default.
+
+Reference: https://docs.soliditylang.org/en/v0.8.0/control-structures.html#checked-or-unchecked-arithmetic
 
 ### L-1 Withdrawal of funds denied by denying funds on selectWinner
+
 If during `PuppyRaffle::selectWinner` the winner is a contract with no payable `receive` or `fallback` function, the result is reverted and a new winner must be determined.
 
 ```jsx
@@ -431,7 +439,7 @@ function selectWinner() external {
     ) % players.length;
 
     address winner = players[winnerIndex];
-    
+
     ...
 
     require(success, "PuppyRaffle: Failed to send prize pool to winner");
